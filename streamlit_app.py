@@ -1,6 +1,24 @@
 import streamlit as st
 import pandas as pd
 import track_calc2 as backend
+import streamlit as st
+
+PASSWORD = "track123"  # change this
+
+def check_password():
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        pwd = st.text_input("Enter Password", type="password")
+
+        if pwd == PASSWORD:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.stop()
+
+check_password()
 
 st.set_page_config(layout="wide")
 st.title("Track Marking Calculator")
