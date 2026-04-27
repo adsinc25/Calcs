@@ -279,6 +279,7 @@ if run:
     tabs = st.tabs(active_sections)
 
     tab_index = 0
+    all_pdf_sections = []
 
     # -----------------------------
     # LANE LENGTHS
@@ -298,6 +299,7 @@ if run:
             })
 
             rows = dataframe_rows(data)
+            all_pdf_sections.append(("Lane Lengths", rows))
 
             st.dataframe(data, use_container_width=True, hide_index=True)
 
@@ -328,6 +330,7 @@ if run:
             })
 
             rows = dataframe_rows(data)
+            all_pdf_sections.append(("Point to Point", rows))
 
             st.dataframe(data, use_container_width=True, hide_index=True)
 
@@ -358,6 +361,7 @@ if run:
             })
 
             rows = dataframe_rows(data)
+            all_pdf_sections.append(("Distance Greater Than Lane 1", rows))
 
             st.dataframe(data, use_container_width=True, hide_index=True)
 
@@ -391,6 +395,7 @@ if run:
             })
 
             rows = dataframe_rows(data)
+            all_pdf_sections.append(("Crossover Lengths", rows))
 
             st.dataframe(data, use_container_width=True, hide_index=True)
 
@@ -426,6 +431,7 @@ if run:
                 })
 
             show_table(rows)
+            all_pdf_sections.append(("Stagger Starts", rows))
 
             pdf_button(
                 "Stagger Starts",
@@ -459,6 +465,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 1", rows))
+            all_pdf_sections.append(("400 Relay - Exchange 1", rows))
 
             st.subheader("Exchange 2")
 
@@ -475,6 +482,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 2", rows))
+            all_pdf_sections.append(("400 Relay - Exchange 2", rows))
 
             st.subheader("Exchange 3")
 
@@ -491,6 +499,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 3", rows))
+            all_pdf_sections.append(("400 Relay - Exchange 3", rows))
 
             pdf_button(
                 "400 Relay",
@@ -524,6 +533,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 1", rows))
+            all_pdf_sections.append(("800 Relay - Exchange 1", rows))
 
             st.subheader("Exchange 2")
 
@@ -540,6 +550,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 2", rows))
+            all_pdf_sections.append(("800 Relay - Exchange 2", rows))
 
             st.subheader("Exchange 3")
 
@@ -556,6 +567,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 3", rows))
+            all_pdf_sections.append(("800 Relay - Exchange 3", rows))
 
             pdf_button(
                 "800 Relay",
@@ -592,6 +604,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 1", rows))
+            all_pdf_sections.append(("1600 Relay - Exchange 1", rows))
 
             st.subheader("Exchange 2 / Exchange 3")
 
@@ -607,6 +620,7 @@ if run:
 
             show_table(rows)
             pdf_sections.append(("Exchange 2 / Exchange 3", rows))
+            all_pdf_sections.append(("1600 Relay - Exchange 2 / Exchange 3", rows))
 
             pdf_button(
                 "1600 Relay",
@@ -632,6 +646,7 @@ if run:
                 })
 
             show_table(rows)
+            all_pdf_sections.append(("200 Starts", rows))
 
             pdf_button(
                 "200 Starts",
@@ -665,6 +680,7 @@ if run:
                 rows.append(row)
 
             show_table(rows)
+            all_pdf_sections.append(("300 Hurdles", rows))
 
             pdf_button(
                 "300 Hurdles",
@@ -698,6 +714,7 @@ if run:
                 rows.append(row)
 
             show_table(rows)
+            all_pdf_sections.append(("400 Hurdles", rows))
 
             pdf_button(
                 "400 Hurdles",
@@ -727,9 +744,23 @@ if run:
             st.subheader("3000m")
             st.write(sc3000)
 
+            all_pdf_sections.append(("Steeplechase", rows))
+
             pdf_button(
                 "Steeplechase",
                 [("Steeplechase", rows)],
                 track_info,
                 "steeplechase.pdf"
             )
+
+        tab_index += 1
+
+    if all_pdf_sections:
+        st.divider()
+
+        pdf_button(
+            "All Selected Sections",
+            all_pdf_sections,
+            track_info,
+            "all_selected_sections.pdf"
+        )
