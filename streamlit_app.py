@@ -1,9 +1,16 @@
 import streamlit as st
 import pandas as pd
 import track_calc2 as backend
-import streamlit as st
+from io import BytesIO
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, PageBreak
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+st.set_page_config(layout="wide")
 
 PASSWORD = "track123"  # change this
+
 
 def check_password():
     if "authenticated" not in st.session_state:
@@ -18,9 +25,9 @@ def check_password():
         else:
             st.stop()
 
+
 check_password()
 
-st.set_page_config(layout="wide")
 st.title("Track Marking Calculator")
 
 
@@ -59,6 +66,119 @@ def show_table(rows):
         html,
         unsafe_allow_html=True
     )
+
+
+def clean_pdf_value(value, style):
+    text = str(value).replace("<br>", "<br/>")
+    return Paragraph(text, style)
+
+
+def build_pdf(title, table_sections, track_info):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(letter),
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=36,
+        bottomMargin=36
+    )
+
+    styles = getSampleStyleSheet()
+    normal = styles["Normal"]
+    table_style = ParagraphStyle(
+        "TableCell",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10
+    )
+    header_style = ParagraphStyle(
+        "TableHeader",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        fontName="Helvetica-Bold"
+    )
+
+    elements = []
+
+    job_title = title if not track_info.get("Job Name") else track_info["Job Name"]
+
+    # COVER PAGE
+    elements.append(Paragraph("Track Calculations and Specifications", normal))
+    elements.append(Spacer(1, 60))
+
+    elements.append(Paragraph(job_title, normal))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph("Prepared by:", normal))
+    elements.append(Spacer(1, 18))
+
+    for line in [
+        "AMC, Inc.",
+        "121 Shepard Way",
+        "Newnan, GA 30265",
+        "770-356-2446",
+        "www.trackstriping.com"
+    ]:
+        elements.append(Paragraph(line, normal))
+
+    elements.append(Spacer(1, 70))
+    elements.append(Paragraph(f"Track Specification for {job_title}", normal))
+    elements.append(Paragraph("Design parameters", normal))
+    elements.append(Paragraph("------------------------------------------------------------", normal))
+
+    for k, v in track_info.items():
+        if k != "Job Name":
+            elements.append(Paragraph(f"{k}: {v}", normal))
+
+    elements.append(PageBreak())
+
+    # TABLE PAGES
+    for section_title, rows in table_sections:
+        if not rows:
+            continue
+
+        elements.append(Paragraph(section_title, styles["Heading2"]))
+        elements.append(Spacer(1, 10))
+
+        table_data = []
+        headers = list(rows[0].keys())
+        table_data.append([Paragraph(str(h), header_style) for h in headers])
+
+        for r in rows:
+            table_data.append([
+                clean_pdf_value(value, table_style)
+                for value in r.values()
+            ])
+
+        table = Table(table_data, repeatRows=1)
+        table.setStyle([
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ])
+
+        elements.append(table)
+        elements.append(Spacer(1, 20))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+def pdf_button(title, table_sections, track_info, file_name):
+    pdf = build_pdf(title, table_sections, track_info)
+
+    st.download_button(
+        label=f"Download {title} PDF",
+        data=pdf,
+        file_name=file_name,
+        mime="application/pdf"
+    )
+
+
+def dataframe_rows(data):
+    return data.to_dict("records")
 
 
 # -----------------------------
@@ -131,6 +251,17 @@ run = st.sidebar.button("Calculate")
 
 if run:
 
+    track_info = {
+        "Job Name": job_name,
+        "Radius to outside edge of first painted line": radius,
+        "Distance between radius points (Straights)": tangent_length,
+        "Lane Width": lane_width,
+        "Number of lanes": number_of_lanes,
+        "Finish line offset": finish_offset,
+        "Overlap(+)/Underlap(-)": finish_offset,
+        "Curb": "yes" if curb_present else "no"
+    }
+
     lanes = backend.calculate_lanes(
         radius,
         tangent_length,
@@ -139,7 +270,9 @@ if run:
         curb_present
     )
 
-    st.header(f"JOB: {job_name}")
+    if job_name:
+        st.header(f"JOB: {job_name}")
+
     st.caption(f"Finish Offset: {finish_offset}")
 
     active_sections = [k for k, v in sections.items() if v]
@@ -164,7 +297,16 @@ if run:
                 "total_lane_length": "Lap 1 Distance",
             })
 
+            rows = dataframe_rows(data)
+
             st.dataframe(data, use_container_width=True, hide_index=True)
+
+            pdf_button(
+                "Lane Lengths",
+                [("Lane Lengths", rows)],
+                track_info,
+                "lane_lengths.pdf"
+            )
 
         tab_index += 1
 
@@ -185,7 +327,16 @@ if run:
                 "pc1_to_pc1": "PC1 to PC1",
             })
 
+            rows = dataframe_rows(data)
+
             st.dataframe(data, use_container_width=True, hide_index=True)
+
+            pdf_button(
+                "Point to Point",
+                [("Point to Point", rows)],
+                track_info,
+                "point_to_point.pdf"
+            )
 
         tab_index += 1
 
@@ -206,7 +357,16 @@ if run:
                 "turn4": "Turn 4",
             })
 
+            rows = dataframe_rows(data)
+
             st.dataframe(data, use_container_width=True, hide_index=True)
+
+            pdf_button(
+                "Distance Greater Than Lane 1",
+                [("Distance Greater Than Lane 1", rows)],
+                track_info,
+                "distance_greater_than_lane_1.pdf"
+            )
 
         tab_index += 1
 
@@ -230,7 +390,16 @@ if run:
                 "turn3_angle": "Turn 3 Angle",
             })
 
+            rows = dataframe_rows(data)
+
             st.dataframe(data, use_container_width=True, hide_index=True)
+
+            pdf_button(
+                "Crossover Lengths",
+                [("Crossover Lengths", rows)],
+                track_info,
+                "crossover_lengths.pdf"
+            )
 
         tab_index += 1
 
@@ -258,6 +427,13 @@ if run:
 
             show_table(rows)
 
+            pdf_button(
+                "Stagger Starts",
+                [("Stagger Starts", rows)],
+                track_info,
+                "stagger_starts.pdf"
+            )
+
         tab_index += 1
 
     # -----------------------------
@@ -265,6 +441,7 @@ if run:
     # -----------------------------
     if sections["400 Relay"]:
         with tabs[tab_index]:
+            pdf_sections = []
 
             st.subheader("Exchange 1")
 
@@ -281,6 +458,7 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 1", rows))
 
             st.subheader("Exchange 2")
 
@@ -296,6 +474,7 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 2", rows))
 
             st.subheader("Exchange 3")
 
@@ -311,6 +490,14 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 3", rows))
+
+            pdf_button(
+                "400 Relay",
+                pdf_sections,
+                track_info,
+                "400_relay.pdf"
+            )
 
         tab_index += 1
 
@@ -319,6 +506,7 @@ if run:
     # -----------------------------
     if sections["800 Relay"]:
         with tabs[tab_index]:
+            pdf_sections = []
 
             st.subheader("Exchange 1")
 
@@ -335,6 +523,7 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 1", rows))
 
             st.subheader("Exchange 2")
 
@@ -350,6 +539,7 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 2", rows))
 
             st.subheader("Exchange 3")
 
@@ -365,6 +555,14 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 3", rows))
+
+            pdf_button(
+                "800 Relay",
+                pdf_sections,
+                track_info,
+                "800_relay.pdf"
+            )
 
         tab_index += 1
 
@@ -373,6 +571,7 @@ if run:
     # -----------------------------
     if sections["1600 Relay"]:
         with tabs[tab_index]:
+            pdf_sections = []
 
             st.subheader("Exchange 1")
 
@@ -392,6 +591,7 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 1", rows))
 
             st.subheader("Exchange 2 / Exchange 3")
 
@@ -406,6 +606,14 @@ if run:
                 })
 
             show_table(rows)
+            pdf_sections.append(("Exchange 2 / Exchange 3", rows))
+
+            pdf_button(
+                "1600 Relay",
+                pdf_sections,
+                track_info,
+                "1600_relay.pdf"
+            )
 
         tab_index += 1
 
@@ -424,6 +632,13 @@ if run:
                 })
 
             show_table(rows)
+
+            pdf_button(
+                "200 Starts",
+                [("200 Starts", rows)],
+                track_info,
+                "200_starts.pdf"
+            )
 
         tab_index += 1
 
@@ -451,6 +666,13 @@ if run:
 
             show_table(rows)
 
+            pdf_button(
+                "300 Hurdles",
+                [("300 Hurdles", rows)],
+                track_info,
+                "300_hurdles.pdf"
+            )
+
         tab_index += 1
 
     # -----------------------------
@@ -477,6 +699,13 @@ if run:
 
             show_table(rows)
 
+            pdf_button(
+                "400 Hurdles",
+                [("400 Hurdles", rows)],
+                track_info,
+                "400_hurdles.pdf"
+            )
+
         tab_index += 1
 
     # -----------------------------
@@ -487,8 +716,20 @@ if run:
 
             sc2000, sc3000 = backend.calculate_steeplechase()
 
+            rows = [
+                {"Event": "2000m", "Calculation": sc2000},
+                {"Event": "3000m", "Calculation": sc3000},
+            ]
+
             st.subheader("2000m")
             st.write(sc2000)
 
             st.subheader("3000m")
             st.write(sc3000)
+
+            pdf_button(
+                "Steeplechase",
+                [("Steeplechase", rows)],
+                track_info,
+                "steeplechase.pdf"
+            )
